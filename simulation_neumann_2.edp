@@ -1,0 +1,149 @@
+// definir les constantes du modèle
+real Tfinal=400, dt=0.1,t=0;
+real D=10.;
+real v=2.5, L=30;
+real rplus=1, K=10, ro=0.25;
+real rmoins=2;
+real j=0; // enfonction de comment est initialiser freefem, vecteur commence à 0 ou 1
+//real[int] P(Tfinal/dt+2);
+//real[int] T(Tfinal/dt+2);
+// peut-être + pu - 1 
+
+// definir les bords 
+border a(t=0,20){x=t; y=0; }
+border b(t=0,400){x=20; y=t; }
+border c(t=20,0){x=t; y=400; }
+border d(t=400,0){x=0; y=t;}  
+
+int n=20;//10  // unite du nombre de noeuds
+
+// maillage du domaine avec n noeuds sur le bord a,...
+
+mesh Th=buildmesh( a(n)+b(4*n)+c(n)+d(4*n));//essayer aussi avec 20 au lieu de 4
+
+// Tracer la grille 
+plot(Th,wait=1,fill=1,ps="grille_tunnel.eps");  
+
+// definition de l'espace d'approximation
+fespace Vh(Th,P2);     // P1 ou P2 FE space
+Vh uh,vh,Un,uh2,vh2;              // inconnues et fct test.
+
+// Définir g 
+func real g(real Un, real x2, real t)
+{
+    if (v*t<x2 && x2 < v*t+L) return rplus*(1-(Un/K));
+    else return 0.0;
+};
+
+// Définir g_tilde
+func real tildeg(real Un, real x2, real t)
+{
+    if (x2 > v*t+L) return rmoins;
+    else if (v*t > x2) return -rmoins;
+    else return 0.0;
+};
+
+// formulation du problème 
+problem envelope(uh2,vh2) =
+    int2d(Th)( D*dt*(dx(uh2)*dx(vh2) + dy(uh2)*dy(vh2)) ) + int2d(Th)( uh2*vh2 )
+    - int2d(Th)(uh2*vh2*dt*g(Un,y,t) - tildeg(Un, y, t)*vh2*(dx(uh2)*dt + dy(uh2)*dt))
+    - int2d(Th)( Un*vh2 );
+
+// formulation du problème 
+problem envelopeinitiale(uh,vh) =
+    int2d(Th)( D*dt*(dx(uh)*dx(vh) + dy(uh)*dy(vh)) ) + int2d(Th)( uh*vh )
+    - int2d(Th)(uh*vh*dt*g(Un,y,0) - tildeg(Un, y, 0)*vh*(dx(uh)*dt + dy(uh)*dt))
+    - int2d(Th)( Un*vh );
+
+
+// Boucle en temps initial// Boucle en temps
+Tfinal=30.;
+real[int] Pi(floor(Tfinal/dt)+2);//prendre large pour eviter les problemes "Out of bound"
+real[int] Ti(floor(Tfinal/dt)+2);
+Un=2*K; 
+//vector[] integral(int((T/dt)+1));
+//real[int] xx(150), yy(150);
+plot(Un,fill=1,value=true,wait=1);
+cout << floor(Tfinal/dt);
+Pi[0]=int2d(Th)( Un );
+Ti[0] = t;
+while (t<Tfinal)
+{
+//  resoudre le pb variationnel
+	envelopeinitiale;
+	cout << j;
+	j=j+1;
+	t=t+dt;
+	Pi[j] = int2d(Th)( uh );
+	Ti[j] = t;
+	
+	plot(uh,fill=1,value=true);
+	Un=uh;
+	//  reinitialiser Un
+	//xx[t/dt] = t/dt;
+ 	//yy[t/dt] = uh;
+	
+	//integral[int(t/dt)] = sum(uh)*dV;
+
+	
+	
+ }
+
+
+plot([Ti,Pi],ps="population_initiale.eps", wait=1);  
+
+t=0;
+j=0;
+// Boucle en temps 2
+Tfinal=30;
+real[int] P(floor(Tfinal/dt)+2);
+real[int] T(floor(Tfinal/dt)+2);
+Un=uh;
+P[0]=int2d(Th)( Un );
+T[0] = t; 
+//vector[] integral(int((T/dt)+1));
+//real[int] xx(150), yy(150);
+while (t<Tfinal)
+{
+//  resoudre le pb variationnel
+	envelope;
+	
+	j=j+1;
+	t=t+dt;
+	P[j] = int2d(Th)( uh2 );
+	T[j] = t;
+	
+	plot(uh2,fill=1,value=true);
+	Un=uh2;
+	//  reinitialiser Un
+	//xx[t/dt] = t/dt;
+ 	//yy[t/dt] = uh;
+	
+	//integral[int(t/dt)] = sum(uh)*dV;
+
+	
+	
+	
+ }
+ 
+ cout << t ;
+
+//plot([xx,yy],wait=1,ps="plot.eps",value=true,nbiso=60);
+plot(uh2,wait=1,ps="plot.eps",value=true,nbiso=60);
+//plot(integral, t=0:dt:Tfinal)
+
+plot([T,P],ps="population.eps",wait=1);  
+ 
+
+//include "ffmatlib.idp"
+//ffSaveData(uh,"export_3_uh.txt");
+
+{
+// define the precision with which we write the result in the output file (here, with 15 digits) 
+ofstream ja("Result1logsitic_neumann.txt");
+int nold=ja.precision(15);
+
+// we write in the file
+for (int i = 0; i <= j; i++)
+ja << T[i] << " " << P[i] << endl;
+}
